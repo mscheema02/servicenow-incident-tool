@@ -11,7 +11,9 @@ A local monitor reports a website DOWN or UP. ServiceNow receives that report on
 
 ## Demo
 
-[ServiceBridge demo](https://youtu.be/UHHJGj-Bgto)
+[![Demo Video](https://img.youtube.com/vi/UHHJGj-Bgto/0.jpg)](https://youtu.be/UHHJGj-Bgto)
+
+**Demo:** https://youtu.be/UHHJGj-Bgto
 
 ## Run the dashboard
 

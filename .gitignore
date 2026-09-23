@@ -21,6 +21,7 @@ __pycache__/
 LOCAL.md
 docs/LOCAL.md
 *.local.md
+docs/DEMO_GUIDE.md
 
 # Logs and OS/editor noise
 *.log

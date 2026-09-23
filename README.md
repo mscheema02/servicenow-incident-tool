@@ -1,13 +1,17 @@
 # ServiceBridge
 
-A local monitor reports a website DOWN or UP. ServiceNow receives that report on a Scripted REST API, stores a Monitor Event, and opens or updates a native Incident. An UP event records recovery and leaves the Incident open.
+A Flask client on localhost posts monitoring JSON to a ServiceNow Scripted REST API. A scoped Script Include validates the payload, writes a Monitor Event receipt, and creates or updates a native `incident` row keyed by `correlation_id`. Recovery (`UP`) appends work notes and does not resolve the Incident.
+
+**What this helped me learn:** inbound Scripted REST with role checks, scoped Script Includes and `GlideRecord` against both custom tables and `incident`, delivery idempotency via `event_id` versus outage correlation via `outage_id`, and keeping the external UI as a pure HTTP client so Incident writes stay on the platform.
+
+How the pieces connect: [docs/HOW_IT_WORKS.md](docs/HOW_IT_WORKS.md).
 
 ![ServiceBridge dashboard. Box 1 is monitored services, box 2 is send event, box 3 is the event log, box 4 is the ServiceNow footer.](docs/dashboard.jpg)
 
-1. **Monitored services.** The sites this dashboard watches, and whether the last local reading was up or down. This list is on your machine. It is not the Incident.
-2. **Send event.** Choose the service, type an outage id, pick DOWN or UP, then transmit. The line under the button is the HTTP status ServiceNow returned.
-3. **Event log.** Each send from this page: time, DOWN or UP, service, outage id, and OK or FAIL with the status code.
-4. **ServiceNow footer.** The instance this dashboard is configured to call. **CONNECTED** means the URL and user are set. A successful transmit is the proof the call worked.
+1. **Monitored services.** Local SQLite view of each `service_key` and last observed DOWN/UP. Not the ServiceNow Incident.
+2. **Send event.** Builds the JSON body (`event_id`, `source`, `service_key`, `outage_id`, `state`, `observed_at`) and POSTs it with Basic auth. The line under the button is the HTTP status and processor `status` from ServiceNow.
+3. **Event log.** Local history of each POST: timestamp, state, service, outage id, OK/FAIL and status code.
+4. **ServiceNow footer.** Configured Scripted REST host. **CONNECTED** means URL/user/password env vars are set; a successful transmit proves the call.
 
 ## Demo
 
@@ -38,7 +42,7 @@ Run the command from this directory, not from `servicebridge_ui/`.
 
 ```
 servicebridge/
-├── docs/DEMO_GUIDE.md          # Shot list for the demo video
+├── docs/HOW_IT_WORKS.md        # Integration path and processor behavior
 ├── docs/UI_GUIDE.md            # Dashboard layout
 ├── servicebridge_ui/           # Local dashboard
 └── servicenow/

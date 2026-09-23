@@ -1,0 +1,11 @@
+[project]
+name = "servicebridge"
+version = "1.0.0"
+description = "Local dashboard that sends website DOWN and UP events to ServiceNow"
+requires-python = ">=3.10"
+dependencies = [
+    "flask>=3.0.0",
+]
+
+[project.scripts]
+servicebridge-ui = "servicebridge_ui.app:main"

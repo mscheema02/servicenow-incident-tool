@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Virtualenv and uv cache
+.venv/
+.uv/
+
+# Local dashboard and mock databases
+*.sqlite3
+*.sqlite3-journal
+
+# Secrets. LOCAL.md has the instance URL and passwords.
+.env
+.env.*
+!.env.example
+LOCAL.md
+docs/LOCAL.md
+*.local.md
+
+# Logs and OS/editor noise
+*.log
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

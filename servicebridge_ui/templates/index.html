@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ServiceBridge Monitor</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="terminal">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-left">
+                <span class="logo">▶ SERVICEBRIDGE</span>
+                <span class="subtitle">MONITOR TERMINAL</span>
+            </div>
+            <div class="header-right">
+                <span class="clock" id="clock"></span>
+                <span class="connection" id="connection">● DISCONNECTED</span>
+            </div>
+        </header>
+
+        <!-- Main Grid -->
+        <main class="grid">
+            <!-- Stats Panel -->
+            <section class="panel stats-panel">
+                <h2 class="panel-title">SYSTEM STATUS</h2>
+                <div class="stats-grid">
+                    <div class="stat">
+                        <span class="stat-label">SERVICES UP</span>
+                        <span class="stat-value up" id="services-up">0</span>
+                    </div>
+                    <div class="stat">
+                        <span class="stat-label">SERVICES DOWN</span>
+                        <span class="stat-value down" id="services-down">0</span>
+                    </div>
+                    <div class="stat">
+                        <span class="stat-label">EVENTS SENT</span>
+                        <span class="stat-value" id="total-events">0</span>
+                    </div>
+                    <div class="stat">
+                        <span class="stat-label">SUCCESSFUL</span>
+                        <span class="stat-value up" id="successful">0</span>
+                    </div>
+                    <div class="stat">
+                        <span class="stat-label">FAILED</span>
+                        <span class="stat-value down" id="failed">0</span>
+                    </div>
+                    <div class="stat">
+                        <span class="stat-label">PENDING</span>
+                        <span class="stat-value warn" id="pending">0</span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Services Panel -->
+            <section class="panel services-panel">
+                <h2 class="panel-title">MONITORED SERVICES</h2>
+                <div class="services-list" id="services-list">
+                    <!-- Populated by JS -->
+                </div>
+            </section>
+
+            <!-- Send Event Panel -->
+            <section class="panel send-panel">
+                <h2 class="panel-title">SEND EVENT</h2>
+                <form id="send-form" class="send-form">
+                    <div class="form-row">
+                        <label>SERVICE</label>
+                        <select id="service-select" name="service_key">
+                            <!-- Populated by JS -->
+                        </select>
+                    </div>
+                    <div class="form-row">
+                        <label>OUTAGE ID</label>
+                        <input type="text" id="outage-id" name="outage_id" placeholder="auto-generated">
+                    </div>
+                    <div class="form-row">
+                        <label>STATE</label>
+                        <div class="state-buttons">
+                            <button type="button" class="state-btn down active" data-state="DOWN">▼ DOWN</button>
+                            <button type="button" class="state-btn up" data-state="UP">▲ UP</button>
+                        </div>
+                    </div>
+                    <button type="submit" class="send-btn" id="send-btn">
+                        TRANSMIT EVENT
+                    </button>
+                </form>
+                <div class="response-area" id="response-area"></div>
+            </section>
+
+            <!-- Event Log Panel -->
+            <section class="panel log-panel">
+                <h2 class="panel-title">EVENT LOG <span class="refresh-hint">[auto-refresh]</span></h2>
+                <div class="event-log" id="event-log">
+                    <!-- Populated by JS -->
+                </div>
+            </section>
+        </main>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <span>SERVICEBRIDGE v1.0</span>
+            <span id="servicenow-status">SERVICENOW: CHECKING...</span>
+            <span>F1:HELP F5:REFRESH F9:CLEAR</span>
+        </footer>
+    </div>
+
+    <script>
+        // State
+        let selectedState = 'DOWN';
+        let services = [];
+
+        // Update clock
+        function updateClock() {
+            const now = new Date();
+            const utc = now.toISOString().replace('T', ' ').substring(0, 19) + ' UTC';
+            document.getElementById('clock').textContent = utc;
+        }
+        setInterval(updateClock, 1000);
+        updateClock();
+
+        // Fetch and update stats
+        async function updateStats() {
+            try {
+                const res = await fetch('/api/stats');
+                const data = await res.json();
+                document.getElementById('services-up').textContent = data.services_up;
+                document.getElementById('services-down').textContent = data.services_down;
+                document.getElementById('total-events').textContent = data.total_events;
+                document.getElementById('successful').textContent = data.successful;
+                document.getElementById('failed').textContent = data.failed;
+                document.getElementById('pending').textContent = data.pending;
+            } catch (e) {
+                console.error('Stats error:', e);
+            }
+        }
+
+        // Fetch and update services
+        async function updateServices() {
+            try {
+                const res = await fetch('/api/services');
+                services = await res.json();
+                
+                const list = document.getElementById('services-list');
+                const select = document.getElementById('service-select');
+                
+                list.innerHTML = services.map(s => `
+                    <div class="service-row ${s.current_state === 'DOWN' ? 'down' : 'up'}">
+                        <span class="service-status">${s.current_state === 'DOWN' ? '●' : '○'}</span>
+                        <span class="service-key">${s.service_key}</span>
+                        <span class="service-name">${s.name}</span>
+                        <span class="service-stats">↓${s.down_count} ↑${s.up_count}</span>
+                    </div>
+                `).join('');
+                
+                select.innerHTML = services.map(s => 
+                    `<option value="${s.service_key}">${s.service_key}</option>`
+                ).join('');
+            } catch (e) {
+                console.error('Services error:', e);
+            }
+        }
+
+        // Fetch and update event log
+        async function updateEvents() {
+            try {
+                const res = await fetch('/api/events?limit=20');
+                const events = await res.json();
+                
+                const log = document.getElementById('event-log');
+                if (events.length === 0) {
+                    log.innerHTML = '<div class="log-empty">NO EVENTS RECORDED</div>';
+                    return;
+                }
+                
+                log.innerHTML = events.map(e => `
+                    <div class="log-row ${e.success ? 'success' : 'error'}">
+                        <span class="log-time">${e.sent_at.substring(11, 19)}</span>
+                        <span class="log-state ${e.state === 'DOWN' ? 'down' : 'up'}">${e.state}</span>
+                        <span class="log-service">${e.service_key}</span>
+                        <span class="log-outage">${e.outage_id}</span>
+                        <span class="log-status">${e.success ? 'OK' : 'FAIL'} ${e.http_status || ''}</span>
+                    </div>
+                `).join('');
+            } catch (e) {
+                console.error('Events error:', e);
+            }
+        }
+
+        // Check ServiceNow config
+        async function checkConfig() {
+            try {
+                const res = await fetch('/api/config');
+                const config = await res.json();
+                const status = document.getElementById('servicenow-status');
+                const conn = document.getElementById('connection');
+                
+                if (config.configured) {
+                    status.textContent = `SERVICENOW: ${config.url.substring(8, 40)}...`;
+                    status.className = 'configured';
+                    conn.textContent = '● CONNECTED';
+                    conn.className = 'connection connected';
+                } else {
+                    status.textContent = 'SERVICENOW: NOT CONFIGURED';
+                    status.className = 'not-configured';
+                    conn.textContent = '● DISCONNECTED';
+                    conn.className = 'connection';
+                }
+            } catch (e) {
+                console.error('Config error:', e);
+            }
+        }
+
+        // State button handling
+        document.querySelectorAll('.state-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.state-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                selectedState = btn.dataset.state;
+            });
+        });
+
+        // Form submission
+        document.getElementById('send-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const btn = document.getElementById('send-btn');
+            const responseArea = document.getElementById('response-area');
+            
+            btn.disabled = true;
+            btn.textContent = 'TRANSMITTING...';
+            responseArea.innerHTML = '<span class="pending">SENDING EVENT...</span>';
+            
+            const formData = {
+                service_key: document.getElementById('service-select').value,
+                outage_id: document.getElementById('outage-id').value || null,
+                state: selectedState,
+            };
+            
+            try {
+                const res = await fetch('/api/send', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(formData),
+                });
+                const data = await res.json();
+                
+                if (data.success) {
+                    responseArea.innerHTML = `
+                        <span class="success">✓ EVENT TRANSMITTED</span>
+                        <span class="detail">HTTP ${data.http_status} | ${JSON.stringify(data.response?.status || data.response)}</span>
+                    `;
+                } else {
+                    responseArea.innerHTML = `
+                        <span class="error">✗ TRANSMISSION FAILED</span>
+                        <span class="detail">${data.http_status ? 'HTTP ' + data.http_status : ''} ${JSON.stringify(data.response)}</span>
+                    `;
+                }
+                
+                // Clear outage ID for next event
+                document.getElementById('outage-id').value = '';
+                
+                // Refresh data
+                updateStats();
+                updateServices();
+                updateEvents();
+            } catch (e) {
+                responseArea.innerHTML = `<span class="error">✗ ERROR: ${e.message}</span>`;
+            }
+            
+            btn.disabled = false;
+            btn.textContent = 'TRANSMIT EVENT';
+        });
+
+        // Keyboard shortcuts
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'F5') {
+                e.preventDefault();
+                updateAll();
+            }
+        });
+
+        // Update all data
+        function updateAll() {
+            updateStats();
+            updateServices();
+            updateEvents();
+            checkConfig();
+        }
+
+        // Initial load and periodic refresh
+        updateAll();
+        setInterval(updateAll, 5000);
+    </script>
+</body>
+</html>

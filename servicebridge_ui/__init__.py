@@ -1,0 +1,1 @@
+"""ServiceBridge monitoring dashboard UI."""
